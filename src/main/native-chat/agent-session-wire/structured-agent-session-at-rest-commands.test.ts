@@ -264,13 +264,11 @@ describe("a Claude chat whose Claude isn't running lists Claude's own `/` comman
       resolveAuthPolicy: () => ({ account: 'system' }),
       runListing: async (...call) => {
         asked.push(call)
-        if (stage.endsWith('close')) {
-          entered.resolve()
-        }
         if (stage.endsWith('fallback') && !blocked) {
           throw new Error('CLI failed')
         }
         if (stage.endsWith('close') && !blocked) {
+          entered.resolve()
           try {
             await waitForPromiseWithSignal(pending.promise, call[1].signal)
           } finally {
@@ -280,11 +278,12 @@ describe("a Claude chat whose Claude isn't running lists Claude's own `/` comman
         return listed('recovered')
       }
     })
+    const emptyDiscovery = { skills: [], sources: [], scannedAt: 0 }
     const claude = new ClaudeAtRestCommandCatalog({
       resolveWorkspacePath: async () => workspace,
       probe,
       discover: async (args) =>
-        waitForPromiseWithSignal(block('fallback', { skills: [], sources: [] }), args.signal)
+        waitForPromiseWithSignal(block('fallback', emptyDiscovery), args.signal)
     })
     const codex = createCodexAtRestSkillCatalog({
       resolveWorkspacePath: () => block('workspace', workspace),
