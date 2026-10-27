@@ -178,12 +178,14 @@ vi.mock('./native-chat/input/MobileNativeChatQueuedMessages', () => ({
 vi.mock('./native-chat/input/MobileNativeChatBackgroundTasks', () => ({
   MobileNativeChatBackgroundTasks: 'BackgroundTasks'
 }))
-vi.mock('./MobileNativeChatImageViewer', () => ({ MobileNativeChatImageViewer: 'ImageViewer' }))
+vi.mock('./native-chat/visual/MobileNativeChatImageViewer', () => ({
+  MobileNativeChatImageViewer: 'ImageViewer'
+}))
 vi.mock('./MobileNativeChatMessageActionsSheet', () => ({
   MobileNativeChatMessageActionsSheet: 'ActionsSheet'
 }))
 vi.mock('./native-chat/composer/MobileNativeChatComposer', () => ({
-  MobileNativeChatComposer: 'Composer'
+  MobileNativeChatDraftComposer: 'Composer'
 }))
 
 const stable = {
@@ -191,7 +193,7 @@ const stable = {
   sendSurfaceId: 'perf-chat',
   getSendCompletionGeneration: () => 0,
   getComposerEditGeneration: () => 0,
-  composerText: '',
+  draftKey: null,
   onComposerTextChange: () => {},
   pending: [
     {
@@ -231,7 +233,7 @@ function Harness({
     nativeChatWorkingStartedAt: timing.workingStartedAt,
     chatPending: stable.pending,
     chatImagePreviewsByMessageId: stable.imagePreviewsByMessageId,
-    chatComposerText: '',
+    chatDraftKey: null,
     setChatComposerText: stable.onComposerTextChange,
     getChatComposerEditGeneration: stable.getComposerEditGeneration,
     nativeChatQueued: { cards: [], pause: null, sessionKey: 'session' }
@@ -325,6 +327,7 @@ const scroller = {
   addEventListener: (type: string, callback: () => void) => listeners.set(type, callback),
   removeEventListener: (type: string) => listeners.delete(type),
   querySelectorAll: () => [],
+  querySelector: () => null,
   getBoundingClientRect: () => ({ top: 0, bottom: 500 })
 }
 const nodeMock = (element: { type: unknown }) =>

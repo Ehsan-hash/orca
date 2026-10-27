@@ -7,8 +7,8 @@ import type { MobileNativeChatController } from './use-mobile-native-chat-contro
 import type { MobileNativeChatStructuredComposer } from './native-chat/composer/MobileNativeChatComposer'
 import { useMobileNativeChatStreamingBubble } from './native-chat/use-mobile-native-chat-streaming-bubble'
 import { useMobileNativeChatComposerTray } from './native-chat/composer/use-mobile-native-chat-composer-tray'
-import { useMobileNativeChatVisualRenderer } from './MobileNativeChatVisual'
-import { MobileNativeChatVisualContext } from './mobile-native-chat-visual-context'
+import { useMobileNativeChatVisualRenderer } from './native-chat/visual/MobileNativeChatVisual'
+import { MobileNativeChatVisualContext } from './native-chat/visual/mobile-native-chat-visual-context'
 import { MobileNativeChatRootItemSourceContext } from './mobile-native-chat-item-read'
 import { useMobileNativeChatMessageDetail } from './use-mobile-native-chat-message-detail'
 import {
@@ -185,7 +185,7 @@ export function MobileNativeChatOverlay({
                 getComposerEditGeneration={controller.getChatComposerEditGeneration}
                 pending={controller.chatPending}
                 imagePreviewsByMessageId={controller.chatImagePreviewsByMessageId}
-                composerText={controller.chatComposerText}
+                draftKey={controller.chatDraftKey}
                 onComposerTextChange={controller.setChatComposerText}
                 onAttachImage={
                   controller.nativeChatAcceptsImages

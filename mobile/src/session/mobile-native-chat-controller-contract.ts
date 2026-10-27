@@ -18,7 +18,7 @@ import type { MobileStructuredBackgroundTasks } from './use-mobile-structured-ba
 import type { MobileNativeChatPendingMessage } from './native-chat/mobile-native-chat-pending-echo'
 import type { useMobileNativeChatSession } from './use-mobile-native-chat-session'
 import type { MobileNativeChatSessionOptionPickersProps } from './native-chat/input/MobileNativeChatSessionOptionPickers'
-import type { MobileNativeChatVisualSource } from './mobile-native-chat-visual-read'
+import type { MobileNativeChatVisualSource } from './native-chat/visual/mobile-native-chat-visual-read'
 import type { useMobileStructuredSessionCommands } from './use-mobile-structured-session-commands'
 
 export type MobileNativeChatController = {
@@ -29,7 +29,7 @@ export type MobileNativeChatController = {
   showNativeChat: boolean
   showNativeChatRef: MutableRefObject<boolean>
   nativeChatAgent: string | null
-  chatComposerText: string
+  chatDraftKey: string | null
   setChatComposerText: Dispatch<SetStateAction<string>>
   getChatComposerEditGeneration: () => number
   chatPending: MobileNativeChatPendingMessage[]

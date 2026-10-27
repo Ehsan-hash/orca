@@ -65,12 +65,14 @@ vi.mock('./MobileNativeChatMessageActionsSheet', () => ({
 }))
 vi.mock('./MobileNativeChatLiveLine', () => ({ MobileNativeChatLiveLine: 'LiveStatus' }))
 vi.mock('./native-chat/composer/MobileNativeChatComposer', () => ({
-  MobileNativeChatComposer: 'Composer'
+  MobileNativeChatDraftComposer: 'Composer'
 }))
 vi.mock('./native-chat/input/MobileNativeChatQueuedMessages', () => ({
   MobileNativeChatQueuedMessages: 'Queued'
 }))
-vi.mock('./MobileNativeChatVisual', () => ({ useMobileNativeChatVisualRenderer: () => null }))
+vi.mock('./native-chat/visual/MobileNativeChatVisual', () => ({
+  useMobileNativeChatVisualRenderer: () => null
+}))
 vi.mock('../components/ActionSheetModal', () => ({ ActionSheetModal: 'ActionSheetModal' }))
 vi.mock('./native-chat/input/MobileNativeChatAsk', () => ({ MobileNativeChatAsk: 'ChatAsk' }))
 vi.mock('./native-chat/input/MobileNativeChatPermission', () => ({
@@ -222,7 +224,7 @@ async function mountPhone(): Promise<Phone> {
       nativeChatStreamScopeKey: 'host\0workspace\0tab',
       chatPending: drafts.pending,
       chatImagePreviewsByMessageId: drafts.imagePreviewsByMessageId,
-      chatComposerText: drafts.composerText,
+      chatDraftKey: drafts.draftKey,
       setChatComposerText: drafts.setComposerText,
       getChatComposerEditGeneration: drafts.getComposerEditGeneration,
       nativeChatQueued: session.queued
