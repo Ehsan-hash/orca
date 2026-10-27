@@ -50,7 +50,6 @@ export function codexSkillRows(answer: unknown, cwd: string): AgentSessionSlashC
   )
 }
 
-/** A reply for several folders has one entry each; a folder without its own entry gets no list. */
 export function codexFolderSkillReport(
   answer: unknown,
   cwd: string

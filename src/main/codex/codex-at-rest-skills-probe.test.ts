@@ -1,4 +1,5 @@
 import * as Files from 'node:fs/promises'
+import { scanClaudeCommandFolders } from '../claude/claude-command-folder-scan'
 import * as Catalog from '../native-chat/agent-session-wire/at-rest-command-catalog'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
@@ -7,8 +8,11 @@ import type { CodexAppServerInvocation } from './codex-app-server-session'
 import type { CodexAtRestSkillsDeps } from './codex-at-rest-skills-probe'
 import { createCodexAtRestSkillCatalog } from './codex-at-rest-skills-probe'
 
+const folders = vi.hoisted(() => ({ open: vi.fn(), read: vi.fn() }))
 vi.mock('node:fs/promises', async (original) => ({
   ...(await original<typeof Files>()),
+  opendir: folders.open,
+  readFile: folders.read,
   stat: vi.fn(async () => ({ isDirectory: () => true }))
 }))
 afterEach(() => vi.useRealTimers())
@@ -28,18 +32,13 @@ vi.mock('../native-chat/agent-session-wire/at-rest-command-catalog', async (orig
   const actual = await original<typeof Catalog>()
   return {
     ...actual,
-    AtRestCommandCatalog: class extends actual.AtRestCommandCatalog {
-      constructor(source: ConstructorParameters<typeof actual.AtRestCommandCatalog>[0]) {
-        super({
-          ...source,
-          scan: (...args) => {
-            const current = args[2]
-            args[2] = () => visits(current())
-            return source.scan(...args)
-          }
-        })
-      }
-    }
+    AtRestCommandCatalog: vi.fn(function (source: Catalog.AtRestCommandSource) {
+      return new actual.AtRestCommandCatalog({
+        ...source,
+        scan: (record, cwd, current, ...rest) =>
+          source.scan(record, cwd, () => visits(current()), ...rest)
+      })
+    })
   }
 })
 function harness(deps: Partial<CodexAtRestSkillsDeps> = {}) {
@@ -48,7 +47,7 @@ function harness(deps: Partial<CodexAtRestSkillsDeps> = {}) {
   let live = 0,
     peak = 0
   const calls: CodexAppServerInvocation[] = []
-  const request = vi.fn(listingRpc().request)
+  const request = vi.fn(listingRpc.request)
   const initialize = vi.fn(() => initialized.promise)
   const catalog = createCodexAtRestSkillCatalog({
     resolveWorkspacePath: async () => '/work/one',
@@ -69,27 +68,38 @@ function harness(deps: Partial<CodexAtRestSkillsDeps> = {}) {
   })
   return { catalog, calls, request, initialize, initialized, closed, peak: () => peak }
 }
-function listingRpc() {
-  return {
-    request: async (_method: string, params: Record<string, unknown> = {}) => {
-      const cwds = Array.isArray(params.cwds) ? params.cwds.map(String) : []
-      return {
-        data: cwds
-          .map((cwd) => ({
-            cwd,
-            skills: [
-              {
-                name: `${cwd.split('/').at(-1)}-skill`,
-                path: `${cwd}/${cwd.split('/').at(-1)}-skill/SKILL.md`
-              }
-            ]
-          }))
-          .toReversed()
-      }
-    },
-    notify: () => {}
-  }
+const listingRpc = {
+  request: async (_method: string, params: Record<string, unknown> = {}) => {
+    const cwds = Array.isArray(params.cwds) ? params.cwds.map(String) : []
+    return {
+      data: cwds
+        .map((cwd) => {
+          const name = `${cwd.split('/').at(-1)}-skill`
+          return { cwd, skills: [{ name, path: `${cwd}/${name}/SKILL.md` }] }
+        })
+        .toReversed()
+    }
+  },
+  notify: () => {}
 }
+
+it('closes a directory opened after cancellation before any read or recursion', async () => {
+  const opened = Promise.withResolvers<unknown>()
+  const unread = Promise.withResolvers<IteratorResult<never>>()
+  const next = vi.fn(() => unread.promise)
+  const close = vi.fn(async () => undefined)
+  folders.open.mockReturnValueOnce(opened.promise)
+  const stop = new AbortController()
+  const reading = scanClaudeCommandFolders(['/commands'], stop.signal)
+  const rejected = expect(reading).rejects.toThrow('cancelled')
+  stop.abort(new Error('cancelled'))
+  opened.resolve({ close, [Symbol.asyncIterator]: () => ({ next }) })
+  await rejected
+  expect(close).toHaveBeenCalledExactlyOnceWith()
+  expect(next).not.toHaveBeenCalled()
+  expect(folders.open).toHaveBeenCalledExactlyOnceWith('/commands')
+  expect(folders.read).not.toHaveBeenCalled()
+})
 
 describe('a resting Codex chat lists the skills Codex would load', () => {
   it('answers every pinned folder from one probe before it settles, which then ends the whole tree', async () => {
@@ -110,7 +120,7 @@ describe('a resting Codex chat lists the skills Codex would load', () => {
       sleep: () => new Promise((resolve) => settling.push(resolve)),
       runSession: async (invocation, body) => {
         invocations.push(invocation)
-        return body(listingRpc())
+        return body(listingRpc)
       }
     })
     const one = floatingCodexChat('one', '/work/one')
@@ -223,14 +233,11 @@ describe('a resting Codex chat lists the skills Codex would load', () => {
       await vi.advanceTimersByTimeAsync(59_999)
       expect(h.calls[0].signal?.aborted).toBe(false)
       await vi.advanceTimersByTimeAsync(1)
-      const others = ['two', 'three'].map((home) =>
-        agentSessionRecordFixture({
-          sessionId: home,
-          provider: 'codex',
-          accountHome: { variable: 'CODEX_HOME', path: home }
-        })
-      )
-      others.forEach(h.catalog.read)
+      const identities = chats.map((chat, i) => ({
+        ...chat,
+        accountHome: { ...chat.accountHome, path: String(i) }
+      }))
+      identities.slice(0, 2).forEach(h.catalog.read)
       await vi.advanceTimersByTimeAsync(0)
       expect(h.calls).toHaveLength(2)
       expect(h.peak()).toBe(2)
@@ -244,10 +251,6 @@ describe('a resting Codex chat lists the skills Codex would load', () => {
       const failed = harness()
       failed.closed.resolve()
       failed.initialize.mockRejectedValue(new Error('initialize failed'))
-      const identities = chats.map((chat, i) => ({
-        ...chat,
-        accountHome: { variable: 'CODEX_HOME', path: String(i) }
-      }))
       identities.forEach(failed.catalog.read)
       await vi.advanceTimersByTimeAsync(0)
       expect(failed.calls).toHaveLength(count)
@@ -272,15 +275,14 @@ describe('a resting Codex chat lists the skills Codex would load', () => {
   )
   it('caps per-key failures, ages success from admission, skips missing cwd and evicts unread entries', async () => {
     vi.useFakeTimers()
+    const completion = Promise.withResolvers<void>()
     const warned = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const scan = vi.fn<Catalog.AtRestCommandSource['scan']>(async (...args) => {
       if (scan.mock.calls.length <= 3) {
         throw new Error('source failed')
       }
       args[5]()
-      if (scan.mock.calls.length === 4) {
-        await new Promise((resolve) => setTimeout(resolve, 105_000))
-      }
+      await (scan.mock.calls.length === 4 ? completion.promise : undefined)
       return { commands: [], fromAgent: true }
     })
     const catalog = new Catalog.AtRestCommandCatalog({
@@ -290,24 +292,23 @@ describe('a resting Codex chat lists the skills Codex would load', () => {
       scan
     })
     const chat = floatingCodexChat('one', '/work/one')
-    let attempts = 0
-    for (const ms of [0, 10_000, 10_000, 299_999]) {
+    for (const [attempt, ms] of [0, 10_000, 10_000, 299_999].entries()) {
       await vi.advanceTimersByTimeAsync(ms)
       catalog.read(chat)
       await vi.advanceTimersByTimeAsync(0)
-      expect(scan).toHaveBeenCalledTimes(Math.min(++attempts, 3))
+      expect(scan).toHaveBeenCalledTimes(Math.min(attempt + 1, 3))
     }
     await vi.advanceTimersByTimeAsync(1)
     catalog.read(chat)
     await vi.advanceTimersByTimeAsync(105_000)
+    completion.resolve()
+    await catalog.settled(chat, 1_000)
     expect(catalog.read(chat)).toEqual([])
     await vi.advanceTimersByTimeAsync(195_000)
     await catalog.settled(chat, 1_000)
     expect(scan).toHaveBeenCalledTimes(5)
     catalog.retireContext()
-    vi.mocked(Files.stat).mockRejectedValueOnce(
-      Object.assign(new Error('gone'), { code: 'ENOENT' })
-    )
+    vi.mocked(Files.stat).mockRejectedValueOnce({ code: 'ENOENT' })
     expect(await catalog.settled(chat, 1_000)).toBeUndefined()
     expect(scan).toHaveBeenCalledTimes(5)
     const removed = vi.spyOn(Map.prototype, 'delete')

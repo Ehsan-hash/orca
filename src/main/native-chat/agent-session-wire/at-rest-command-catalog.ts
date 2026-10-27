@@ -26,7 +26,6 @@ export type AtRestCommandScan = {
 export type AtRestCommandSource = {
   /** Other hosts must scan their own folders. */
   accepts: (record: AgentSessionRecord) => boolean
-  /** Each source bounds its own work; the catalog never starts a second scan for a key. */
   scan: (
     record: AgentSessionRecord,
     cwd: string,
@@ -154,14 +153,12 @@ export class AtRestCommandCatalog implements StructuredAgentSessionAtRestCommand
     }
     entry.lastReadAt = now
     this.evictUnread(now)
-    // Readers join the running scan; a slow source must not multiply its own work.
     if (!entry.scanning && now - entry.scannedAt >= AT_REST_COMMANDS_TTL_MS) {
       this.scanInto(entry, record)
     }
     return entry
   }
 
-  /** Released and closed chats stop being read; drop their entries instead of keeping them forever. */
   private evictUnread(now: number): void {
     if (now < this.nextEviction) {
       return

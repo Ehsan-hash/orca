@@ -15,7 +15,12 @@ async function readEntries(path: string, budget: ScanBudget): Promise<Dirent[]> 
   try {
     const entries: Dirent[] = []
     budget.signal?.throwIfAborted()
-    for await (const entry of await opendir(path)) {
+    const directory = await opendir(path)
+    if (budget.signal?.aborted) {
+      await directory.close()
+      budget.signal.throwIfAborted()
+    }
+    for await (const entry of directory) {
       budget.signal?.throwIfAborted()
       if (budget.remainingEntries === 0) {
         break

@@ -148,7 +148,6 @@ export function createCodexAtRestSkillCatalog(deps: CodexAtRestSkillsDeps): AtRe
     ...(deps.now ? { now: deps.now } : {})
   })
 }
-/** One process answers its launch's folders until the startup grace ends, then the tree is torn down. */
 export async function probe(
   deps: CodexAtRestSkillsDeps,
   pool: Pools.ProbeOwner,
