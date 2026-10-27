@@ -1,10 +1,14 @@
 import type { AgentSessionRecord } from '../../../shared/agent-session-record'
 import type { AgentSessionSlashCommand } from '../../../shared/agent-session-wire'
-import { requireLegacyAgentSessionAccountHome } from '../../../shared/agent-session-account-home'
+import {
+  requireLegacyAgentSessionAccountHome,
+  type AgentSessionAccountHome
+} from '../../../shared/agent-session-account-home'
 import { agentSessionPinnedLaunchDirectory } from '../../runtime/agent-session-record-launch-directory'
 import type { StructuredAgentSessionAtRestCommands } from './structured-agent-session-at-rest-commands'
 import { atRestCommandContextReady } from './at-rest-command-context'
 import { stat } from 'node:fs/promises'
+import { isDefinitiveAbsence } from '../../../shared/definitive-filesystem-absence'
 import { waitForPromiseWithSignal } from '../../../shared/abort-signal-reason'
 
 /** Running chats supply their own lists; rescan resting folders/accounts after this TTL. */
@@ -35,6 +39,8 @@ export type AtRestCommandSource = {
     admitted: () => void
   ) => Promise<AtRestCommandScan>
   resolveWorkspacePath: (workspaceId: string) => Promise<string>
+  /** The account a start uses now, read at scan time; absent scans the chat's saved account. */
+  resolveAccountHome?: () => Promise<AgentSessionAccountHome>
   label: string
   now?: () => number
   dispose?: () => void
@@ -133,7 +139,10 @@ export class AtRestCommandCatalog implements StructuredAgentSessionAtRestCommand
     const now = this.now()
     const key = JSON.stringify([
       record.provider,
-      requireLegacyAgentSessionAccountHome(record.accountHome).path,
+      // A selected account changes through retireContext, not per chat.
+      this.source.resolveAccountHome
+        ? null
+        : requireLegacyAgentSessionAccountHome(record.accountHome).path,
       record.location.workspaceId,
       agentSessionPinnedLaunchDirectory(record)
     ])
@@ -193,19 +202,17 @@ export class AtRestCommandCatalog implements StructuredAgentSessionAtRestCommand
         agentSessionPinnedLaunchDirectory(record) ??
         (await wait(this.source.resolveWorkspacePath(record.location.workspaceId)))
       const directory = await wait(stat(cwd)).catch((error: unknown) => {
-        if (
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          (error.code === 'ENOENT' || error.code === 'ENOTDIR')
-        ) {
+        if (error && typeof error === 'object' && 'code' in error && isDefinitiveAbsence(error)) {
           return undefined
         }
         throw error
       })
+      const accountHome =
+        (await wait(Promise.resolve(this.source.resolveAccountHome?.()))) ?? record.accountHome
+      const chat = { ...record, accountHome }
       attempt.signal.throwIfAborted()
       const answer = directory?.isDirectory()
-        ? await this.source.scan(record, cwd, isCurrent, entry.generation, attempt.signal, admitted)
+        ? await this.source.scan(chat, cwd, isCurrent, entry.generation, attempt.signal, admitted)
         : { commands: undefined, fromAgent: false }
       attempt.signal.throwIfAborted()
       return answer

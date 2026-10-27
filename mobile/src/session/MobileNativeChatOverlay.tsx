@@ -10,12 +10,12 @@ import { useMobileNativeChatComposerTray } from './native-chat/composer/use-mobi
 import { useMobileNativeChatVisualRenderer } from './native-chat/visual/MobileNativeChatVisual'
 import { MobileNativeChatVisualContext } from './native-chat/visual/mobile-native-chat-visual-context'
 import { MobileNativeChatRootItemSourceContext } from './mobile-native-chat-item-read'
-import { useMobileNativeChatMessageDetail } from './use-mobile-native-chat-message-detail'
+import { useMobileNativeChatMessageDetail } from './native-chat/transcript/use-mobile-native-chat-message-detail'
 import {
   MobileNativeChatReplyRevealsContext,
   useMobileNativeChatReplyReveals
-} from './mobile-native-chat-reply-reveals'
-import { MobileNativeChatRowOverlaysHost } from './MobileNativeChatRowOverlaysHost'
+} from './native-chat/transcript/mobile-native-chat-reply-reveals'
+import { MobileNativeChatRowOverlaysHost } from './native-chat/transcript/MobileNativeChatRowOverlaysHost'
 import { nativeChatAskRequiresTerminal } from '../../../src/shared/native-chat-agent-support'
 
 type Props = {

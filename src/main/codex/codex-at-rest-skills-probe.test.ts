@@ -48,7 +48,6 @@ function harness(deps: Partial<CodexAtRestSkillsDeps> = {}) {
     peak = 0
   const calls: CodexAppServerInvocation[] = []
   const request = vi.fn(listingRpc.request)
-  const initialize = vi.fn(() => initialized.promise)
   const catalog = createCodexAtRestSkillCatalog({
     resolveWorkspacePath: async () => '/work/one',
     resolveLaunchArgs: () => [],
@@ -57,7 +56,7 @@ function harness(deps: Partial<CodexAtRestSkillsDeps> = {}) {
       calls.push(invocation)
       peak = Math.max(peak, ++live)
       try {
-        await initialize()
+        await initialized.promise
         return await body({ request, notify: () => {} })
       } finally {
         await closed.promise
@@ -66,7 +65,7 @@ function harness(deps: Partial<CodexAtRestSkillsDeps> = {}) {
     },
     ...deps
   })
-  return { catalog, calls, request, initialize, initialized, closed, peak: () => peak }
+  return { catalog, calls, request, initialized, closed, peak: () => peak }
 }
 const listingRpc = {
   request: async (_method: string, params: Record<string, unknown> = {}) => ({
@@ -82,8 +81,7 @@ const listingRpc = {
 
 it('closes a directory opened after cancellation before any read or recursion', async () => {
   const opened = Promise.withResolvers<unknown>()
-  const unread = Promise.withResolvers<IteratorResult<never>>()
-  const next = vi.fn(() => unread.promise)
+  const next = vi.fn(() => new Promise<IteratorResult<never>>(() => {}))
   const close = vi.fn(async () => undefined)
   folders.open.mockReturnValueOnce(opened.promise)
   const stop = new AbortController()
@@ -247,7 +245,7 @@ describe('a resting Codex chat lists the skills Codex would load', () => {
       expect(vi.getTimerCount()).toBe(0)
       const failed = harness()
       failed.closed.resolve()
-      failed.initialize.mockRejectedValue(new Error('initialize failed'))
+      failed.initialized.reject(new Error('initialize failed'))
       identities.forEach(failed.catalog.read)
       await vi.advanceTimersByTimeAsync(0)
       expect(failed.calls).toHaveLength(count)
