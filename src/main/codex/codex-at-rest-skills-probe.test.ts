@@ -69,17 +69,14 @@ function harness(deps: Partial<CodexAtRestSkillsDeps> = {}) {
   return { catalog, calls, request, initialize, initialized, closed, peak: () => peak }
 }
 const listingRpc = {
-  request: async (_method: string, params: Record<string, unknown> = {}) => {
-    const cwds = Array.isArray(params.cwds) ? params.cwds.map(String) : []
-    return {
-      data: cwds
-        .map((cwd) => {
-          const name = `${cwd.split('/').at(-1)}-skill`
-          return { cwd, skills: [{ name, path: `${cwd}/${name}/SKILL.md` }] }
-        })
-        .toReversed()
-    }
-  },
+  request: async (_method: string, params: Record<string, unknown> = {}) => ({
+    data: (Array.isArray(params.cwds) ? params.cwds.map(String) : [])
+      .map((cwd) => {
+        const name = `${cwd.split('/').at(-1)}-skill`
+        return { cwd, skills: [{ name, path: `${cwd}/${name}/SKILL.md` }] }
+      })
+      .toReversed()
+  }),
   notify: () => {}
 }
 

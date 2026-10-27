@@ -314,11 +314,9 @@ describe("a Claude chat whose Claude isn't running lists Claude's own `/` comman
         fallback = Promise.withResolvers<void>()
         entered = Promise.withResolvers<void>()
         blocked = false
-        const catalog = stage.startsWith('codex') ? codex : claude
-        const chat = {
-          ...record,
-          provider: stage.startsWith('codex') ? ('codex' as const) : ('claude' as const)
-        }
+        const provider = stage.startsWith('codex') ? ('codex' as const) : ('claude' as const)
+        const catalog = provider === 'codex' ? codex : claude
+        const chat = { ...record, provider }
         const ready = stage.endsWith('readiness')
           ? refreshAtRestCommandContext(() => block('readiness', undefined))
           : Promise.resolve()

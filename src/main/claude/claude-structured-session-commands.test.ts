@@ -118,7 +118,7 @@ it('keeps a buffered stream catalog newer than the initialization response', asy
 it("answers a resting chat's `/` menu only for chats this host runs", async () => {
   const listed = [{ name: 'review-pr', kind: 'skill' as const }]
   const catalog = new ClaudeAtRestCommandCatalog({
-    resolveWorkspacePath: async () => '/work',
+    resolveWorkspacePath: async () => process.cwd(),
     probe: async () => listed
   })
   const local = agentSessionRecordFixture()
